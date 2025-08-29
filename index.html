@@ -79,23 +79,9 @@
             <p class="text-slate-400">Icelandic Vocabulary Practice</p>
         </header>
 
-        <!-- Auth Status -->
-        <div id="auth-container" class="text-center mb-4">
-            <div id="user-info" class="hidden items-center justify-center text-sm text-slate-400">
-                <p>Signed in as <span id="user-email" class="font-semibold text-slate-300"></span></p>
-                <button id="sign-out-btn" class="ml-4 text-sky-400 hover:text-sky-300 font-semibold">Sign Out</button>
-            </div>
-            <div id="anonymous-info" class="hidden items-center justify-center text-sm text-slate-400">
-                <p>Using a temporary guest account.</p>
-                <button id="link-account-btn" class="ml-4 bg-emerald-600 text-white py-1 px-3 rounded-lg text-xs font-semibold hover:bg-emerald-700 transition-colors">Save & Sync Words</button>
-            </div>
-            <div id="login-options" class="hidden flex-col items-center gap-3">
-                 <button id="sign-in-btn" class="bg-white text-slate-800 py-2 px-6 rounded-lg font-semibold hover:bg-slate-200 transition-colors flex items-center justify-center w-full max-w-xs mx-auto">
-                    <svg class="w-4 h-4 mr-2" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8c-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4C12.955 4 4 12.955 4 24s8.955 20 20 20s20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"></path><path fill="#FF3D00" d="M6.306 14.691l6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4C16.318 4 9.656 8.337 6.306 14.691z"></path><path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238C29.211 35.091 26.715 36 24 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z"></path><path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303c-.792 2.237-2.231 4.166-4.087 5.571l6.19 5.238C42.021 35.841 44 30.138 44 24c0-1.341-.138-2.65-.389-3.917z"></path></svg>
-                    Sign in with Google
-                </button>
-                <button id="guest-btn" class="text-slate-400 hover:text-slate-300 text-sm font-semibold">Continue as Guest</button>
-            </div>
+        <!-- Data Retrieval Button -->
+        <div id="retrieve-container" class="text-center mb-4">
+            <button id="retrieve-data-btn" class="bg-sky-600 text-white py-3 px-6 rounded-lg font-semibold hover:bg-sky-700 transition-colors w-full max-w-xs mx-auto">Retrieve All Words</button>
         </div>
 
         <!-- Main App Content (hidden by default) -->
@@ -176,14 +162,12 @@
              </div>
         </div>
 
-
     </div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-analytics.js";
-        import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut, signInAnonymously, linkWithPopup } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, setDoc, collection, getDocs, updateDoc, serverTimestamp, deleteDoc, query, orderBy } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, getDoc, setDoc, collection, getDocs, updateDoc, serverTimestamp, query, orderBy, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // Your web app's Firebase configuration
         const firebaseConfig = {
@@ -199,22 +183,14 @@
         // --- FIREBASE INITIALIZATION ---
         const app = initializeApp(firebaseConfig);
         const analytics = getAnalytics(app);
-        const auth = getAuth(app);
         const db = getFirestore(app);
-        const googleProvider = new GoogleAuthProvider();
-        let userId = null;
+        let allWords = [];
         let currentExercise = null;
+        // All new words will be added to this shared user ID
+        const SHARED_USER_ID = 'shared-public-words';
 
         // --- UI ELEMENTS ---
-        const authContainer = document.getElementById('auth-container');
-        const userInfo = document.getElementById('user-info');
-        const userEmail = document.getElementById('user-email');
-        const anonymousInfo = document.getElementById('anonymous-info');
-        const linkAccountBtn = document.getElementById('link-account-btn');
-        const loginOptions = document.getElementById('login-options');
-        const signInBtn = document.getElementById('sign-in-btn');
-        const guestBtn = document.getElementById('guest-btn');
-        const signOutBtn = document.getElementById('sign-out-btn');
+        const retrieveDataBtn = document.getElementById('retrieve-data-btn');
         const mainContent = document.getElementById('main-content');
         
         const navBtns = document.querySelectorAll('.nav-btn');
@@ -241,70 +217,15 @@
         const confirmCancelBtn = document.getElementById('confirm-cancel-btn');
         const confirmDeleteBtn = document.getElementById('confirm-delete-btn');
 
-
         // --- APP LOGIC ---
 
-        // Authentication
-        signInBtn.addEventListener('click', () => {
-            signInWithPopup(auth, googleProvider).catch(error => {
-                console.error("Google sign-in failed:", error);
-            });
+        retrieveDataBtn.addEventListener('click', async () => {
+            setButtonLoading(retrieveDataBtn, true, "Retrieving...");
+            await loadAllWordsFromDB();
+            loadNextExercise();
+            mainContent.classList.remove('hidden');
+            retrieveDataBtn.parentElement.classList.add('hidden');
         });
-        
-        guestBtn.addEventListener('click', () => {
-            signInAnonymously(auth).catch(error => {
-                console.error("Guest sign-in failed:", error);
-            });
-        });
-
-        linkAccountBtn.addEventListener('click', () => {
-            linkWithPopup(auth.currentUser, googleProvider).then((result) => {
-                const credential = GoogleAuthProvider.credentialFromResult(result);
-                const user = result.user;
-                console.log("Anonymous account successfully linked to", user.email);
-            }).catch((error) => {
-                console.error("Error linking account:", error);
-            });
-        });
-
-        signOutBtn.addEventListener('click', () => {
-            signOut(auth).catch(error => {
-                console.error("Sign out failed:", error);
-            });
-        });
-        
-        onAuthStateChanged(auth, async (user) => {
-            // Hide all auth UI initially
-            userInfo.classList.add('hidden');
-            anonymousInfo.classList.add('hidden');
-            loginOptions.classList.add('hidden');
-            loginOptions.classList.remove('flex');
-
-            if (user) {
-                userId = user.uid;
-                mainContent.classList.remove('hidden');
-                
-                if (user.isAnonymous) {
-                    // User is anonymous
-                    anonymousInfo.classList.remove('hidden');
-                    anonymousInfo.classList.add('flex');
-                } else {
-                    // User is signed in with Google
-                    userInfo.classList.remove('hidden');
-                    userInfo.classList.add('flex');
-                    userEmail.textContent = user.email;
-                }
-                loadNextExercise();
-            } else {
-                // User is signed out, show login options
-                userId = null;
-                mainContent.classList.add('hidden');
-                loginOptions.classList.remove('hidden');
-                loginOptions.classList.add('flex');
-                promptWord.textContent = 'Please sign in or continue as a guest.';
-            }
-        });
-
 
         // Navigation
         navBtns.forEach(btn => {
@@ -335,10 +256,6 @@
                 showInputFeedback("Please enter a word or phrase.", "text-red-400");
                 return;
             }
-            if (!userId) {
-                showInputFeedback("You must be logged in to add items.", "text-red-400");
-                return;
-            }
 
             setButtonLoading(addWordBtn, true);
 
@@ -352,7 +269,7 @@
                     keyForDb = await getBaseFormFromGemini(originalWord);
                 }
                 
-                const wordRef = doc(db, `users/${userId}/words`, keyForDb);
+                const wordRef = doc(db, `users/${SHARED_USER_ID}/words`, keyForDb);
                 const docSnap = await getDoc(wordRef);
 
                 if (docSnap.exists()) {
@@ -366,6 +283,15 @@
                         originalInput: originalWord
                     });
                     showInputFeedback(`Successfully added "${keyForDb}"!`, "text-green-400");
+                    // Add the new word to our local cache to avoid re-fetching
+                    allWords.push({ 
+                        id: keyForDb, 
+                        userId: SHARED_USER_ID, 
+                        word: keyForDb, 
+                        practicedCount: 0, 
+                        userTranslation: userTranslation || "", 
+                        originalInput: originalWord 
+                    });
                     newWordInput.value = '';
                     userTranslationInput.value = '';
                     if (myWordsSection.classList.contains('active')) {
@@ -379,40 +305,48 @@
                 setButtonLoading(addWordBtn, false);
             }
         });
+        
+        async function loadAllWordsFromDB() {
+            allWords = [];
+            const usersCollection = collection(db, 'users');
+            const userSnapshots = await getDocs(usersCollection);
+
+            for (const userDoc of userSnapshots.docs) {
+                const wordsCollection = collection(db, `users/${userDoc.id}/words`);
+                const wordsSnapshot = await getDocs(wordsCollection);
+                wordsSnapshot.forEach(wordDoc => {
+                    allWords.push({
+                        id: wordDoc.id,
+                        userId: userDoc.id, // Store original owner ID
+                        ...wordDoc.data()
+                    });
+                });
+            }
+        }
+
 
         // --- EXERCISE LOGIC ---
         async function loadNextExercise() {
-            if (!userId) {
-                promptWord.textContent = 'Please sign in or continue as a guest.';
-                return;
-            }
-            
-            promptWord.textContent = 'Loading...';
-            answerInput.value = '';
-            feedbackContainer.innerHTML = '';
-            feedbackContainer.classList.add('hidden');
-
-
-            const wordsCol = collection(db, `users/${userId}/words`);
-            const snapshot = await getDocs(wordsCol);
-
-            if (snapshot.empty) {
-                promptWord.textContent = 'No words added yet';
+            if (allWords.length === 0) {
+                promptWord.textContent = 'No words loaded';
                 document.getElementById('exercise-content').style.display = 'none';
                 return;
             }
             
             document.getElementById('exercise-content').style.display = 'block';
+            promptWord.textContent = 'Loading...';
+            answerInput.value = '';
+            feedbackContainer.innerHTML = '';
+            feedbackContainer.classList.add('hidden');
 
-            let words = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            let words = [...allWords];
             words.sort((a, b) => a.practicedCount - b.practicedCount);
             
-            const isSentenceExercise = Math.random() < 0.25; // 25% chance
+            const isSentenceExercise = Math.random() < 0.25;
             const singleWords = words.filter(w => !w.word.includes(' '));
 
             if (isSentenceExercise && singleWords.length > 0) {
-                // Logic for Sentence Exercise (only uses single words)
-                singleWords.sort((a, b) => a.practicedCount - b.practicedCount);
+                // Sentence Exercise Logic
                 const oneThirdIndex = Math.ceil(singleWords.length / 3);
                 const randomIndex = Math.floor(Math.random() * oneThirdIndex);
                 const wordData = singleWords[randomIndex];
@@ -426,7 +360,7 @@
                     currentExercise = { type: 'sentence', data: wordData, sentence: sentence };
                     promptWord.textContent = `"${sentence}"`;
                 } catch (e) {
-                    // Fallback to word exercise if sentence generation fails
+                     // Fallback to word exercise
                     currentExercise = { type: 'word', data: wordData };
                     promptLabel.textContent = 'What is the meaning of:';
                     promptWord.classList.add('text-4xl');
@@ -434,7 +368,7 @@
                     promptWord.textContent = currentExercise.data.word;
                 }
             } else {
-                // Logic for Word/Phrase exercise
+                // Word/Phrase Exercise Logic
                 const oneThirdIndex = Math.ceil(words.length / 3);
                 const randomIndex = Math.floor(Math.random() * oneThirdIndex);
                 const wordData = words[randomIndex];
@@ -498,29 +432,27 @@
         nextWordBtn.addEventListener('click', loadNextExercise);
 
         async function updatePracticeCount(wordObject, change) {
-            const wordRef = doc(db, `users/${userId}/words`, wordObject.id);
+            // Use the original userId stored on the word object
+            const wordRef = doc(db, `users/${wordObject.userId}/words`, wordObject.id);
             const newCount = (wordObject.practicedCount || 0) + change;
             await updateDoc(wordRef, { practicedCount: newCount });
+            // Update local cache
+            const wordInCache = allWords.find(w => w.id === wordObject.id && w.userId === wordObject.userId);
+            if(wordInCache) wordInCache.practicedCount = newCount;
         }
         
         // --- MY WORDS LIST LOGIC ---
-        async function loadAndDisplayWords() {
-            if (!userId) return;
-            wordListContainer.innerHTML = '<p class="text-slate-400 text-center">Loading words...</p>';
+        function loadAndDisplayWords() {
+            if (allWords.length === 0) {
+                 wordListContainer.innerHTML = '<p class="text-slate-400 text-center">No words loaded yet. Click "Retrieve All Words" first.</p>';
+                 return;
+            }
 
-            const q = query(collection(db, `users/${userId}/words`), orderBy("createdAt", "desc"));
-            const querySnapshot = await getDocs(q);
+            const sortedWords = [...allWords].sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
             
             wordListContainer.innerHTML = ''; 
 
-            if (querySnapshot.empty) {
-                wordListContainer.innerHTML = '<p class="text-slate-400 text-center">You haven\'t added any words yet.</p>';
-                return;
-            }
-
-            const wordsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-
-            wordsData.forEach(word => {
+            sortedWords.forEach(word => {
                 const wordEl = document.createElement('div');
                 wordEl.className = 'flex items-center justify-between bg-slate-700 p-3 rounded-lg';
                 
@@ -542,22 +474,23 @@
                 deleteBtn.className = 'flex-shrink-0 bg-red-600/50 hover:bg-red-600/80 text-white p-2 rounded-full transition-colors';
                 deleteBtn.addEventListener('click', (e) => {
                     e.stopPropagation();
-                    openConfirmModal(word.id);
+                    openConfirmModal(word);
                 });
+
 
                 wordEl.appendChild(wordTextEl);
                 wordEl.appendChild(deleteBtn);
                 wordListContainer.appendChild(wordEl);
             });
         }
-
-        function openConfirmModal(wordId) {
+        
+        function openConfirmModal(wordObject) {
             confirmModal.classList.remove('hidden');
-            confirmModalTitle.textContent = `Delete "${wordId}"?`;
+            confirmModalTitle.textContent = `Delete "${wordObject.id}"?`;
             confirmModalText.textContent = `Are you sure you want to delete this item? This action cannot be undone.`;
             
             const deleteHandler = async () => {
-                await deleteWord(wordId);
+                await deleteWord(wordObject);
                 closeConfirmModal();
             };
             
@@ -571,15 +504,17 @@
         confirmCancelBtn.addEventListener('click', closeConfirmModal);
 
 
-        async function deleteWord(wordId) {
+        async function deleteWord(wordObject) {
             try {
-                await deleteDoc(doc(db, `users/${userId}/words`, wordId));
-                loadAndDisplayWords(); // Refresh list
+                await deleteDoc(doc(db, `users/${wordObject.userId}/words`, wordObject.id));
+                // Remove from local cache
+                allWords = allWords.filter(w => !(w.id === wordObject.id && w.userId === wordObject.userId));
+                // Refresh list display
+                loadAndDisplayWords();
             } catch (error) {
                 console.error("Error deleting item: ", error);
             }
         }
-
 
         // --- GEMINI API INTEGRATION ---
         async function makeGeminiApiCall(prompt, retries = 3, delay = 1000) {
@@ -721,14 +656,16 @@ Do not include any other text, markdown, or code blocks outside the HTML structu
         });
 
         // --- UTILITY FUNCTIONS ---
-        function setButtonLoading(button, isLoading) {
+        function setButtonLoading(button, isLoading, loadingText = "Loading...") {
             if (isLoading) {
                 button.disabled = true;
-                button.innerHTML = `<span class="inline-flex items-center">Loading...</span>`;
+                button.innerHTML = `<span class="inline-flex items-center">${loadingText}</span>`;
             } else {
                 button.disabled = false;
-                button.textContent = button.id === 'add-word' ? 'Add' : 'Check';
-                if(button.id === 'give-up') button.textContent = 'I give up';
+                 if(button.id === 'add-word') button.textContent = 'Add';
+                 else if (button.id === 'check-answer') button.textContent = 'Check';
+                 else if (button.id === 'give-up') button.textContent = 'I give up';
+                 else if (button.id === 'retrieve-data-btn') button.textContent = 'Retrieve All Words';
             }
         }
 
