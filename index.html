@@ -110,7 +110,7 @@
             <div class="bg-slate-800 p-6 rounded-xl shadow-lg border border-slate-700">
                 <h2 class="text-2xl font-semibold mb-4 text-center text-slate-100">Add New Vocabulary</h2>
                 <div class="space-y-4">
-                    <input type="text" id="new-word-input" placeholder="Enter a new word (e.g., 'bók')" class="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-slate-100 placeholder:text-slate-400 focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition-shadow duration-200">
+                    <input type="text" id="new-word-input" placeholder="Enter a word or phrase (e.g., 'bók')" class="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-slate-100 placeholder:text-slate-400 focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition-shadow duration-200">
                     <input type="text" id="user-translation-input" placeholder="Optional: your translation (e.g., 'book')" class="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-slate-100 placeholder:text-slate-400 focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition-shadow duration-200">
                     <button id="add-word" class="w-full bg-emerald-600 text-white py-3 px-4 rounded-lg hover:bg-emerald-700 transition-colors duration-300 font-semibold shadow-md shadow-emerald-600/20">Add</button>
                 </div>
@@ -253,32 +253,40 @@
             const originalWord = newWordInput.value.trim().toLowerCase();
             const userTranslation = userTranslationInput.value.trim();
             if (!originalWord) {
-                showInputFeedback("Please enter a word.", "text-red-400");
+                showInputFeedback("Please enter a word or phrase.", "text-red-400");
                 return;
             }
             if (!userId) {
-                showInputFeedback("You must be logged in to add words.", "text-red-400");
+                showInputFeedback("You must be logged in to add items.", "text-red-400");
                 return;
             }
 
             setButtonLoading(addWordBtn, true);
 
             try {
-                const baseWord = await getBaseFormFromGemini(originalWord);
-                const wordRef = doc(db, `users/${userId}/words`, baseWord);
+                let keyForDb;
+                const isPhrase = originalWord.includes(' ');
+
+                if (isPhrase) {
+                    keyForDb = originalWord;
+                } else {
+                    keyForDb = await getBaseFormFromGemini(originalWord);
+                }
+                
+                const wordRef = doc(db, `users/${userId}/words`, keyForDb);
                 const docSnap = await getDoc(wordRef);
 
                 if (docSnap.exists()) {
-                    showInputFeedback(`"${baseWord}" is already in your list.`, "text-yellow-400");
+                    showInputFeedback(`"${keyForDb}" is already in your list.`, "text-yellow-400");
                 } else {
                     await setDoc(wordRef, {
-                        word: baseWord,
+                        word: keyForDb,
                         practicedCount: 0,
                         createdAt: serverTimestamp(),
                         userTranslation: userTranslation || "",
                         originalInput: originalWord
                     });
-                    showInputFeedback(`Successfully added "${baseWord}"!`, "text-green-400");
+                    showInputFeedback(`Successfully added "${keyForDb}"!`, "text-green-400");
                     newWordInput.value = '';
                     userTranslationInput.value = '';
                     if (myWordsSection.classList.contains('active')) {
@@ -287,7 +295,7 @@
                 }
             } catch (error) {
                 console.error("Error adding word: ", error);
-                showInputFeedback("Could not add word. See console for details.", "text-red-400");
+                showInputFeedback("Could not add item. See console for details.", "text-red-400");
             } finally {
                 setButtonLoading(addWordBtn, false);
             }
@@ -320,14 +328,16 @@
             let words = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             words.sort((a, b) => a.practicedCount - b.practicedCount);
             
-            const oneThirdIndex = Math.ceil(words.length / 3);
-            const randomIndex = Math.floor(Math.random() * oneThirdIndex);
-            const wordData = words[randomIndex];
-
-            // Decide exercise type
             const isSentenceExercise = Math.random() < 0.25; // 25% chance
+            const singleWords = words.filter(w => !w.word.includes(' '));
 
-            if (isSentenceExercise) {
+            if (isSentenceExercise && singleWords.length > 0) {
+                // Logic for Sentence Exercise (only uses single words)
+                singleWords.sort((a, b) => a.practicedCount - b.practicedCount);
+                const oneThirdIndex = Math.ceil(singleWords.length / 3);
+                const randomIndex = Math.floor(Math.random() * oneThirdIndex);
+                const wordData = singleWords[randomIndex];
+
                 promptLabel.textContent = 'Translate this sentence to Icelandic:';
                 promptWord.classList.remove('text-4xl');
                 promptWord.classList.add('text-2xl');
@@ -345,6 +355,11 @@
                     promptWord.textContent = currentExercise.data.word;
                 }
             } else {
+                // Logic for Word/Phrase exercise
+                const oneThirdIndex = Math.ceil(words.length / 3);
+                const randomIndex = Math.floor(Math.random() * oneThirdIndex);
+                const wordData = words[randomIndex];
+                
                 currentExercise = { type: 'word', data: wordData };
                 promptLabel.textContent = 'What is the meaning of:';
                 promptWord.classList.add('text-4xl');
@@ -460,7 +475,7 @@
         function openConfirmModal(wordId) {
             confirmModal.classList.remove('hidden');
             confirmModalTitle.textContent = `Delete "${wordId}"?`;
-            confirmModalText.textContent = `Are you sure you want to delete this word? This action cannot be undone.`;
+            confirmModalText.textContent = `Are you sure you want to delete this item? This action cannot be undone.`;
             
             const deleteHandler = async () => {
                 await deleteWord(wordId);
@@ -482,7 +497,7 @@
                 await deleteDoc(doc(db, `users/${userId}/words`, wordId));
                 loadAndDisplayWords(); // Refresh list
             } catch (error) {
-                console.error("Error deleting word: ", error);
+                console.error("Error deleting item: ", error);
             }
         }
 
@@ -512,7 +527,7 @@
         }
 
         async function checkAnswerWithGemini(correctWord, userAnswer) {
-             const prompt = `The original word is "${correctWord}". The user's answer for its translation is "${userAnswer}". Is the user's answer correct? Consider minor typos or slight variations in meaning as correct. Respond with only "CORRECT" or "INCORRECT".`;
+             const prompt = `The original word or phrase is "${correctWord}". The user's answer for its translation is "${userAnswer}". Is the user's answer correct? Consider minor typos or slight variations in meaning as correct. Respond with only "CORRECT" or "INCORRECT".`;
              const response = await makeGeminiApiCall(prompt);
              return response.trim().toUpperCase() === 'CORRECT';
         }
@@ -550,14 +565,14 @@ Do not include any other text, markdown, or code blocks outside the HTML structu
         }
 
         async function getWordInfoFromGemini(word) {
-             const prompt = `Provide detailed information for the Icelandic word "${word}". Structure your response in four parts separated by "---".
+             const prompt = `Provide detailed information for the Icelandic word or phrase "${word}". Structure your response in four parts separated by "---".
 1. A single line of comma-separated English translations.
 ---
-2. A single line of comma-separated Icelandic synonyms. If none, write "None".
+2. A single line of comma-separated Icelandic synonyms or related phrases. If none, write "None".
 ---
-3. If applicable, provide a full declension or conjugation table in a simple HTML table format with <th> headers. If not applicable, write "N/A".
+3. If applicable, provide a full declension or conjugation table in a simple HTML table format with <th> headers. For phrases, this is not applicable, so write "N/A".
 ---
-4. Three example sentences. Each on a new line. Format: "Original Icelandic sentence. (English translation.)" Do NOT include numbers like "1.".`;
+4. Three example sentences using the word or phrase. Each on a new line. Format: "Original Icelandic sentence. (English translation.)" Do NOT include numbers like "1.".`;
              const response = await makeGeminiApiCall(prompt);
              return response;
         }
