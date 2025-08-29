@@ -307,15 +307,39 @@
         });
         
         async function loadAllWordsFromDB() {
-            allWords = [];
-            const wordsCollection = collection(db, PUBLIC_WORDS_PATH);
-            const wordsSnapshot = await getDocs(wordsCollection);
-            wordsSnapshot.forEach(wordDoc => {
-                allWords.push({
+            const tempWords = new Map();
+
+            // 1. Fetch from the new public path
+            const publicWordsCollection = collection(db, PUBLIC_WORDS_PATH);
+            const publicWordsSnapshot = await getDocs(publicWordsCollection);
+            publicWordsSnapshot.forEach(wordDoc => {
+                tempWords.set(wordDoc.id, {
                     id: wordDoc.id,
+                    isPublic: true, // Mark as public for deletion purposes
                     ...wordDoc.data()
                 });
             });
+            
+            // 2. Fetch from the old user-based paths
+            const usersCollection = collection(db, 'users');
+            const userSnapshots = await getDocs(usersCollection);
+
+            for (const userDoc of userSnapshots.docs) {
+                const wordsCollection = collection(db, `users/${userDoc.id}/words`);
+                const wordsSnapshot = await getDocs(wordsCollection);
+                wordsSnapshot.forEach(wordDoc => {
+                    // Only add if it's not already in the map from the public collection
+                    if (!tempWords.has(wordDoc.id)) {
+                        tempWords.set(wordDoc.id, {
+                            id: wordDoc.id,
+                            userId: userDoc.id, // Keep original owner for deletion
+                            ...wordDoc.data()
+                        });
+                    }
+                });
+            }
+            
+            allWords = Array.from(tempWords.values());
         }
 
 
@@ -426,7 +450,8 @@
         nextWordBtn.addEventListener('click', loadNextExercise);
 
         async function updatePracticeCount(wordObject, change) {
-            const wordRef = doc(db, PUBLIC_WORDS_PATH, wordObject.id);
+            const path = wordObject.isPublic ? PUBLIC_WORDS_PATH : `users/${wordObject.userId}/words`;
+            const wordRef = doc(db, path, wordObject.id);
             const newCount = (wordObject.practicedCount || 0) + change;
             await updateDoc(wordRef, { practicedCount: newCount });
             // Update local cache
@@ -499,7 +524,8 @@
 
         async function deleteWord(wordObject) {
             try {
-                await deleteDoc(doc(db, PUBLIC_WORDS_PATH, wordObject.id));
+                const path = wordObject.isPublic ? PUBLIC_WORDS_PATH : `users/${wordObject.userId}/words`;
+                await deleteDoc(doc(db, path, wordObject.id));
                 // Remove from local cache
                 allWords = allWords.filter(w => w.id !== wordObject.id);
                 // Refresh list display
