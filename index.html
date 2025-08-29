@@ -51,6 +51,24 @@
         #modal-content tr:nth-child(even) {
             background-color: #162033;
         }
+        /* Styles for sentence feedback */
+        #feedback-container ul {
+            list-style-type: disc;
+            list-style-position: inside;
+            margin-top: 0.5rem;
+            padding-left: 0.5rem;
+        }
+        #feedback-container li {
+            margin-bottom: 0.5rem;
+            line-height: 1.5;
+        }
+        #feedback-container strong {
+            color: #fca5a5; /* red-300 */
+            font-weight: 600;
+        }
+        #feedback-container p:not(:first-child) {
+            margin-top: 0.75rem;
+        }
     </style>
 </head>
 <body class="bg-slate-900 text-slate-300 min-h-screen flex items-center justify-center p-4">
@@ -362,7 +380,7 @@
                         await updatePracticeCount(currentExercise.data, 1);
                         await showWordInfo(currentExercise.data);
                     } else {
-                        feedbackContainer.innerHTML = `<p class="text-red-400 font-semibold mb-2">Not quite. Here's some feedback:</p><div class="text-slate-300 whitespace-pre-line">${explanation}</div>`;
+                        feedbackContainer.innerHTML = `<p class="text-red-400 font-semibold mb-2">Not quite. Here's some feedback:</p><div class="text-slate-300">${explanation}</div>`;
                     }
                 }
             } catch (error) {
@@ -500,7 +518,17 @@
         }
         
         async function checkSentenceWithGemini(englishSentence, userAnswer, word) {
-            const prompt = `The original English sentence is: "${englishSentence}". The user's Icelandic translation is: "${userAnswer}". The key vocabulary word is "${word}". First, on a single line, respond with only "CORRECT" or "INCORRECT". On a new line, add "---". After that, provide a detailed but friendly analysis of any mistakes in the user's translation. Explain each mistake clearly, covering grammar, word choice, and word order. If the translation is perfect, simply say "Excellent work, the translation is perfect."`;
+            const prompt = `The original English sentence is: "${englishSentence}". The user's Icelandic translation is: "${userAnswer}". The key vocabulary word is "${word}".
+First, on a single line, respond with only "CORRECT" or "INCORRECT".
+On a new line, add "---".
+After that, provide a detailed but friendly analysis of any mistakes in the user's translation using simple HTML.
+- Use a <ul> for a list of mistakes if there are multiple.
+- Use <li> for each individual mistake.
+- Use <strong> to highlight key terms or incorrect parts of the user's answer.
+- Provide a corrected version of the sentence, perhaps wrapped in a <p> tag with a label like "Corrected sentence:".
+- Explain each mistake clearly, covering grammar, word choice, and word order.
+If the translation is perfect, simply write "<p>Excellent work, the translation is perfect.</p>".
+Do not include any other text, markdown, or code blocks outside the HTML structure.`;
             return await makeGeminiApiCall(prompt);
         }
 
