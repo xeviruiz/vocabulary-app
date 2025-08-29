@@ -89,14 +89,17 @@
                 <p>Using a temporary guest account.</p>
                 <button id="link-account-btn" class="ml-4 bg-emerald-600 text-white py-1 px-3 rounded-lg text-xs font-semibold hover:bg-emerald-700 transition-colors">Save & Sync Words</button>
             </div>
-            <button id="sign-in-btn" class="hidden bg-white text-slate-800 py-2 px-6 rounded-lg font-semibold hover:bg-slate-200 transition-colors flex items-center justify-center mx-auto">
-                <svg class="w-4 h-4 mr-2" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8c-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4C12.955 4 4 12.955 4 24s8.955 20 20 20s20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"></path><path fill="#FF3D00" d="M6.306 14.691l6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4C16.318 4 9.656 8.337 6.306 14.691z"></path><path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238C29.211 35.091 26.715 36 24 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z"></path><path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303c-.792 2.237-2.231 4.166-4.087 5.571l6.19 5.238C42.021 35.841 44 30.138 44 24c0-1.341-.138-2.65-.389-3.917z"></path></svg>
-                Sign in with Google
-            </button>
+            <div id="login-options" class="hidden flex-col items-center gap-3">
+                 <button id="sign-in-btn" class="bg-white text-slate-800 py-2 px-6 rounded-lg font-semibold hover:bg-slate-200 transition-colors flex items-center justify-center w-full max-w-xs mx-auto">
+                    <svg class="w-4 h-4 mr-2" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8c-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4C12.955 4 4 12.955 4 24s8.955 20 20 20s20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"></path><path fill="#FF3D00" d="M6.306 14.691l6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4C16.318 4 9.656 8.337 6.306 14.691z"></path><path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238C29.211 35.091 26.715 36 24 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z"></path><path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303c-.792 2.237-2.231 4.166-4.087 5.571l6.19 5.238C42.021 35.841 44 30.138 44 24c0-1.341-.138-2.65-.389-3.917z"></path></svg>
+                    Sign in with Google
+                </button>
+                <button id="guest-btn" class="text-slate-400 hover:text-slate-300 text-sm font-semibold">Continue as Guest</button>
+            </div>
         </div>
 
-        <!-- Main App Content -->
-        <div id="main-content">
+        <!-- Main App Content (hidden by default) -->
+        <div id="main-content" class="hidden">
             <!-- Navigation -->
             <nav class="flex justify-center mb-6 bg-slate-800 p-1 rounded-lg border border-slate-700">
                 <button data-target="exercises-section" class="nav-btn flex-1 py-2 px-4 rounded-md text-sm font-semibold transition-colors duration-300 bg-sky-600 text-white">Exercises</button>
@@ -208,7 +211,9 @@
         const userEmail = document.getElementById('user-email');
         const anonymousInfo = document.getElementById('anonymous-info');
         const linkAccountBtn = document.getElementById('link-account-btn');
+        const loginOptions = document.getElementById('login-options');
         const signInBtn = document.getElementById('sign-in-btn');
+        const guestBtn = document.getElementById('guest-btn');
         const signOutBtn = document.getElementById('sign-out-btn');
         const mainContent = document.getElementById('main-content');
         
@@ -246,6 +251,12 @@
             });
         });
         
+        guestBtn.addEventListener('click', () => {
+            signInAnonymously(auth).catch(error => {
+                console.error("Guest sign-in failed:", error);
+            });
+        });
+
         linkAccountBtn.addEventListener('click', () => {
             linkWithPopup(auth.currentUser, googleProvider).then((result) => {
                 const credential = GoogleAuthProvider.credentialFromResult(result);
@@ -266,11 +277,12 @@
             // Hide all auth UI initially
             userInfo.classList.add('hidden');
             anonymousInfo.classList.add('hidden');
-            signInBtn.classList.add('hidden');
-            
+            loginOptions.classList.add('hidden');
+            loginOptions.classList.remove('flex');
+
             if (user) {
                 userId = user.uid;
-                mainContent.classList.remove('opacity-20', 'pointer-events-none');
+                mainContent.classList.remove('hidden');
                 
                 if (user.isAnonymous) {
                     // User is anonymous
@@ -284,15 +296,12 @@
                 }
                 loadNextExercise();
             } else {
-                // User is signed out, so sign them in anonymously
-                try {
-                    await signInAnonymously(auth);
-                } catch (error) {
-                     console.error("Automatic anonymous sign-in failed: ", error);
-                     promptWord.textContent = "Auth Error";
-                     // Show sign in with google as a fallback
-                     signInBtn.classList.remove('hidden');
-                }
+                // User is signed out, show login options
+                userId = null;
+                mainContent.classList.add('hidden');
+                loginOptions.classList.remove('hidden');
+                loginOptions.classList.add('flex');
+                promptWord.textContent = 'Please sign in or continue as a guest.';
             }
         });
 
@@ -374,7 +383,7 @@
         // --- EXERCISE LOGIC ---
         async function loadNextExercise() {
             if (!userId) {
-                promptWord.textContent = 'Authenticating...';
+                promptWord.textContent = 'Please sign in or continue as a guest.';
                 return;
             }
             
@@ -652,7 +661,7 @@ Do not include any other text, markdown, or code blocks outside the HTML structu
              const userTranslation = wordObject.userTranslation;
              const originalInput = wordObject.originalInput;
 
-             modalContent.innerHTML = `<div class="text-center"><div class="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent align-[-0.125em] text-sky-400 motion-reduce:animate-[spin_1.5s_linear_infinite]" role="status"></div><p class="mt-2 text-slate-400">Fetching word details...</p></div>`;
+             modalContent.innerHTML = `<div class="text-center"><div class="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent align[-0.125em] text-sky-400 motion-reduce:animate-[spin_1.5s_linear_infinite]" role="status"></div><p class="mt-2 text-slate-400">Fetching word details...</p></div>`;
              wordInfoModal.classList.remove('hidden');
 
              try {
