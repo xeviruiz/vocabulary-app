@@ -186,8 +186,9 @@
         const db = getFirestore(app);
         let allWords = [];
         let currentExercise = null;
-        // All new words will be added to this shared user ID
-        const SHARED_USER_ID = 'shared-public-words';
+        
+        // Define the path for the public collection
+        const PUBLIC_WORDS_PATH = 'public/shared-words/words';
 
         // --- UI ELEMENTS ---
         const retrieveDataBtn = document.getElementById('retrieve-data-btn');
@@ -269,7 +270,7 @@
                     keyForDb = await getBaseFormFromGemini(originalWord);
                 }
                 
-                const wordRef = doc(db, `users/${SHARED_USER_ID}/words`, keyForDb);
+                const wordRef = doc(db, PUBLIC_WORDS_PATH, keyForDb);
                 const docSnap = await getDoc(wordRef);
 
                 if (docSnap.exists()) {
@@ -286,7 +287,6 @@
                     // Add the new word to our local cache to avoid re-fetching
                     allWords.push({ 
                         id: keyForDb, 
-                        userId: SHARED_USER_ID, 
                         word: keyForDb, 
                         practicedCount: 0, 
                         userTranslation: userTranslation || "", 
@@ -308,20 +308,14 @@
         
         async function loadAllWordsFromDB() {
             allWords = [];
-            const usersCollection = collection(db, 'users');
-            const userSnapshots = await getDocs(usersCollection);
-
-            for (const userDoc of userSnapshots.docs) {
-                const wordsCollection = collection(db, `users/${userDoc.id}/words`);
-                const wordsSnapshot = await getDocs(wordsCollection);
-                wordsSnapshot.forEach(wordDoc => {
-                    allWords.push({
-                        id: wordDoc.id,
-                        userId: userDoc.id, // Store original owner ID
-                        ...wordDoc.data()
-                    });
+            const wordsCollection = collection(db, PUBLIC_WORDS_PATH);
+            const wordsSnapshot = await getDocs(wordsCollection);
+            wordsSnapshot.forEach(wordDoc => {
+                allWords.push({
+                    id: wordDoc.id,
+                    ...wordDoc.data()
                 });
-            }
+            });
         }
 
 
@@ -432,12 +426,11 @@
         nextWordBtn.addEventListener('click', loadNextExercise);
 
         async function updatePracticeCount(wordObject, change) {
-            // Use the original userId stored on the word object
-            const wordRef = doc(db, `users/${wordObject.userId}/words`, wordObject.id);
+            const wordRef = doc(db, PUBLIC_WORDS_PATH, wordObject.id);
             const newCount = (wordObject.practicedCount || 0) + change;
             await updateDoc(wordRef, { practicedCount: newCount });
             // Update local cache
-            const wordInCache = allWords.find(w => w.id === wordObject.id && w.userId === wordObject.userId);
+            const wordInCache = allWords.find(w => w.id === wordObject.id);
             if(wordInCache) wordInCache.practicedCount = newCount;
         }
         
@@ -506,9 +499,9 @@
 
         async function deleteWord(wordObject) {
             try {
-                await deleteDoc(doc(db, `users/${wordObject.userId}/words`, wordObject.id));
+                await deleteDoc(doc(db, PUBLIC_WORDS_PATH, wordObject.id));
                 // Remove from local cache
-                allWords = allWords.filter(w => !(w.id === wordObject.id && w.userId === wordObject.userId));
+                allWords = allWords.filter(w => w.id !== wordObject.id);
                 // Refresh list display
                 loadAndDisplayWords();
             } catch (error) {
