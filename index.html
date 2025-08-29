@@ -57,7 +57,7 @@
 
     <div class="w-full max-w-md mx-auto">
         <header class="text-center mb-8">
-            <h1 class="text-4xl font-bold text-slate-100">Íslenska Æfing</h1>
+            <h1 class="text-4xl font-bold text-slate-100">Bækur</h1>
             <p class="text-slate-400">Icelandic Vocabulary Practice</p>
         </header>
 
@@ -313,7 +313,8 @@
                 promptWord.classList.remove('text-4xl');
                 promptWord.classList.add('text-2xl');
                 try {
-                    const sentence = await getSentenceFromGemini(wordData.word);
+                    const englishWord = await getEnglishTranslationFromGemini(wordData.word);
+                    const sentence = await getSentenceFromGemini(englishWord);
                     currentExercise = { type: 'sentence', data: wordData, sentence: sentence };
                     promptWord.textContent = `"${sentence}"`;
                 } catch (e) {
@@ -419,8 +420,8 @@
                 wordTextEl.addEventListener('click', () => showWordInfo(word));
 
                 const deleteBtn = document.createElement('button');
-                deleteBtn.innerHTML = `...`; // SVG for delete icon
-                deleteBtn.className = 'text-xs bg-red-600/50 hover:bg-red-600/80 text-white py-1 px-3 rounded-md transition-colors';
+                deleteBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5m2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5m3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0z"/><path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4zM2.5 3V2h11v1h-11z"/></svg>`;
+                deleteBtn.className = 'flex-shrink-0 bg-red-600/50 hover:bg-red-600/80 text-white p-2 rounded-full transition-colors';
                 deleteBtn.addEventListener('click', (e) => {
                     e.stopPropagation();
                     openConfirmModal(word.id);
@@ -497,8 +498,14 @@
             return await makeGeminiApiCall(prompt);
         }
 
-        async function getSentenceFromGemini(word) {
-            const prompt = `Create a simple English sentence that uses the word "${word}". The sentence should be easy to translate into Icelandic. Respond with ONLY the sentence.`;
+        async function getEnglishTranslationFromGemini(word) {
+            const prompt = `What is a common, single-word English translation for the Icelandic word "${word}"? Respond with ONLY the English word, in lowercase.`;
+            const translation = await makeGeminiApiCall(prompt);
+            return translation.trim();
+        }
+
+        async function getSentenceFromGemini(englishWord) {
+            const prompt = `Create a moderately complex and interesting English sentence for a language learner that prominently features the word "${englishWord}". The sentence should provide good context for learning and introduce varied vocabulary. Avoid overly simple structures like "The ${englishWord} is...". Respond with ONLY the sentence.`;
             return await makeGeminiApiCall(prompt);
         }
 
