@@ -252,12 +252,12 @@
 
                 if (docSnap.exists()) {
                     showInputFeedback(`"${baseWord}" is already in your list.`, "text-yellow-400");
-                } else {
-                    await setDoc(wordRef, {
+                    <await setDoc(wordRef, {
                         word: baseWord,
                         practicedCount: 0,
                         createdAt: serverTimestamp(),
-                        userTranslation: userTranslation || ""
+                        userTranslation: userTranslation || "",
+                        originalInput: originalWord
                     });
                     showInputFeedback(`Successfully added "${baseWord}"!`, "text-green-400");
                     newWordInput.value = '';
@@ -413,8 +413,13 @@
                 
                 const wordTextEl = document.createElement('div');
                 wordTextEl.className = 'cursor-pointer flex-grow mr-4';
+
+                const originalInputText = (word.originalInput && word.originalInput !== word.word)
+                    ? ` <span class="font-normal text-slate-400 text-sm">(from: ${word.originalInput})</span>`
+                    : '';
+
                 wordTextEl.innerHTML = `
-                    <p class="font-semibold text-slate-100">${word.word}</p>
+                    <p class="font-semibold text-slate-100">${word.word}${originalInputText}</p>
                     <p class="text-sm text-slate-400">${word.userTranslation || 'No translation added'}</p>
                 `;
                 wordTextEl.addEventListener('click', () => showWordInfo(word));
@@ -505,7 +510,7 @@
         }
 
         async function getSentenceFromGemini(englishWord) {
-            const prompt = `Create a moderately complex but short and interesting English sentence for a language learner that prominently features the word "${englishWord}". The sentence should provide good context for learning and introduce varied vocabulary. Avoid overly simple structures like "The ${englishWord} is...". Respond with ONLY the sentence.`;
+            const prompt = `Create an English sentence for an A2-level language learner that prominently features the word "${englishWord}". The sentence should be interesting and provide good learning context, but use vocabulary and grammar appropriate for the A2 CEFR level. Avoid overly simple structures. Respond with ONLY the sentence.`;
             return await makeGeminiApiCall(prompt);
         }
 
@@ -531,6 +536,7 @@
         async function showWordInfo(wordObject, isGiveUp = false) {
              const word = wordObject.word;
              const userTranslation = wordObject.userTranslation;
+             const originalInput = wordObject.originalInput;
 
              modalContent.innerHTML = `<div class="text-center"><div class="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent align-[-0.125em] text-sky-400 motion-reduce:animate-[spin_1.5s_linear_infinite]" role="status"></div><p class="mt-2 text-slate-400">Fetching word details...</p></div>`;
              wordInfoModal.classList.remove('hidden');
@@ -545,6 +551,12 @@
                         <p class="text-slate-200 text-base">${userTranslation}</p>
                     </div>` : '';
 
+                const originalInputHtml = (originalInput && originalInput !== word) ? `
+                    <div class="mb-4 p-3 bg-slate-700/50 border border-slate-600/50 rounded-lg">
+                        <h3 class="font-semibold text-base text-slate-400">Your Original Input:</h3>
+                        <p class="text-slate-300 text-base">${originalInput}</p>
+                    </div>` : '';
+
                 const sentencesHtml = sentences.split('\n').filter(s => s).map(s => `
                     <blockquote class="border-l-4 border-slate-600 pl-4 py-2 my-2">
                         <p class="text-slate-300">${s}</p>
@@ -555,6 +567,7 @@
                     <h2 class="text-3xl font-bold mb-4 text-center capitalize text-slate-100">${word}</h2>
                     ${isGiveUp ? `<p class="text-center mb-4 p-2 bg-yellow-500/10 text-yellow-300 border border-yellow-500/20 rounded-lg">Here's the information. Practice count has been reduced.</p>` : ''}
                     ${userTranslationHtml}
+                    ${originalInputHtml}
                     <div class="space-y-4">
                         <div>
                             <h3 class="font-semibold text-lg text-sky-400">AI Translations:</h3>
