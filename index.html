@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vocabulary Learning App</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .section {
+            display: none;
+        }
+        .section.active {
+            display: block;
+        }
+        /* Custom scrollbar for modal */
+        #modal-content::-webkit-scrollbar {
+            width: 8px;
+        }
+        #modal-content::-webkit-scrollbar-track {
+            background: #1e293b; /* slate-800 */
+        }
+        #modal-content::-webkit-scrollbar-thumb {
+            background-color: #334155; /* slate-700 */
+            border-radius: 10px;
+            border: 2px solid #1e293b; /* slate-800 */
+        }
+        #modal-content::-webkit-scrollbar-thumb:hover {
+            background-color: #475569; /* slate-600 */
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-300 min-h-screen flex items-center justify-center p-4">
+
+    <div class="w-full max-w-md mx-auto">
+        <header class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-slate-100">Íslenska Æfing</h1>
+            <p class="text-slate-400">Icelandic Vocabulary Practice</p>
+        </header>
+
+        <!-- Navigation -->
+        <nav class="flex justify-center mb-6 bg-slate-800 p-1 rounded-lg border border-slate-700">
+            <button data-target="exercises-section" class="nav-btn flex-1 py-2 px-4 rounded-md text-sm font-semibold transition-colors duration-300 bg-sky-600 text-white">Exercises</button>
+            <button data-target="input-section" class="nav-btn flex-1 py-2 px-4 rounded-md text-sm font-semibold transition-colors duration-300">Input Vocabulary</button>
+        </nav>
+
+        <!-- Exercises Section -->
+        <section id="exercises-section" class="section active">
+            <div class="bg-slate-800 p-6 rounded-xl shadow-lg border border-slate-700">
+                <p class="text-center text-slate-400 mb-2">What is the meaning of:</p>
+                <h2 id="prompt-word" class="text-4xl font-bold mb-4 text-center text-sky-400">...</h2>
+                <div id="exercise-content">
+                    <input type="text" id="answer-input" placeholder="Your answer..." class="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-slate-100 placeholder:text-slate-400 focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition-shadow duration-200">
+                    <div id="feedback-container" class="text-center mt-4 text-sm min-h-[20px]"></div>
+                    <div class="flex gap-4 mt-4">
+                        <button id="check-answer" class="w-full bg-sky-600 text-white py-3 px-4 rounded-lg hover:bg-sky-700 transition-colors duration-300 font-semibold shadow-md shadow-sky-600/20">Check</button>
+                        <button id="give-up" class="w-full bg-slate-600 text-white py-3 px-4 rounded-lg hover:bg-slate-700 transition-colors duration-300 font-semibold">I give up</button>
+                    </div>
+                </div>
+                <div class="text-center mt-4">
+                    <button id="next-word" class="text-sky-400 hover:text-sky-300 transition-colors text-sm">Next word &rarr;</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Input Vocab Section -->
+        <section id="input-section" class="section">
+            <div class="bg-slate-800 p-6 rounded-xl shadow-lg border border-slate-700">
+                <h2 class="text-2xl font-semibold mb-4 text-center text-slate-100">Add New Vocabulary</h2>
+                <div class="space-y-4">
+                    <input type="text" id="new-word-input" placeholder="Enter a new word (e.g., 'bók')" class="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-slate-100 placeholder:text-slate-400 focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition-shadow duration-200">
+                    <input type="text" id="user-translation-input" placeholder="Optional: your translation (e.g., 'book')" class="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-slate-100 placeholder:text-slate-400 focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition-shadow duration-200">
+                    <button id="add-word" class="w-full bg-emerald-600 text-white py-3 px-4 rounded-lg hover:bg-emerald-700 transition-colors duration-300 font-semibold shadow-md shadow-emerald-600/20">Add</button>
+                </div>
+                <p id="input-feedback" class="text-center mt-4 text-sm"></p>
+            </div>
+        </section>
+
+         <!-- Word Info Modal -->
+        <div id="word-info-modal" class="hidden fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50">
+            <div class="bg-slate-800 border border-slate-700 rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col">
+                <div id="modal-content" class="p-6 overflow-y-auto">
+                    <!-- Content will be injected by JS -->
+                </div>
+                <div class="p-4 border-t border-slate-700">
+                    <button id="close-modal" class="w-full bg-sky-600 text-white py-2 px-4 rounded-lg hover:bg-sky-700 transition-colors duration-300">Close</button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-analytics.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, setDoc, collection, getDocs, updateDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Your web app's Firebase configuration
+        const firebaseConfig = {
+          apiKey: "AIzaSyC__btBKiKWMrZGb1zHCEShLPUWycoB8gY",
+          authDomain: "booktranslator-e00e3.firebaseapp.com",
+          projectId: "booktranslator-e00e3",
+          storageBucket: "booktranslator-e00e3.firebasestorage.app",
+          messagingSenderId: "659040771936",
+          appId: "1:659040771936:web:5dc47917b85a8f6f2a4805",
+          measurementId: "G-YF7YP3E0CC"
+        };
+
+        // --- FIREBASE INITIALIZATION ---
+        const app = initializeApp(firebaseConfig);
+        const analytics = getAnalytics(app);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        let userId = null;
+        let currentWord = null;
+
+        // --- UI ELEMENTS ---
+        const navBtns = document.querySelectorAll('.nav-btn');
+        const sections = document.querySelectorAll('.section');
+        const exercisesSection = document.getElementById('exercises-section');
+        const inputSection = document.getElementById('input-section');
+        const addWordBtn = document.getElementById('add-word');
+        const newWordInput = document.getElementById('new-word-input');
+        const userTranslationInput = document.getElementById('user-translation-input');
+        const inputFeedback = document.getElementById('input-feedback');
+        const promptWord = document.getElementById('prompt-word');
+        const answerInput = document.getElementById('answer-input');
+        const checkAnswerBtn = document.getElementById('check-answer');
+        const giveUpBtn = document.getElementById('give-up');
+        const nextWordBtn = document.getElementById('next-word');
+        const feedbackContainer = document.getElementById('feedback-container');
+        const wordInfoModal = document.getElementById('word-info-modal');
+        const modalContent = document.getElementById('modal-content');
+        const closeModalBtn = document.getElementById('close-modal');
+
+        // --- APP LOGIC ---
+
+        // Authentication
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                userId = user.uid;
+                loadNextWord();
+            } else {
+                try {
+                    const userCredential = await signInAnonymously(auth);
+                    userId = userCredential.user.uid;
+                    loadNextWord();
+                } catch (error) {
+                    console.error("Anonymous sign-in failed: ", error);
+                    promptWord.textContent = "Auth Error";
+                }
+            }
+        });
+
+        // Navigation
+        navBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const targetId = btn.dataset.target;
+
+                navBtns.forEach(b => b.classList.remove('bg-sky-600', 'text-white'));
+                btn.classList.add('bg-sky-600', 'text-white');
+
+                sections.forEach(sec => {
+                    sec.classList.remove('active');
+                    if (sec.id === targetId) {
+                        sec.classList.add('active');
+                    }
+                });
+            });
+        });
+
+        // --- VOCABULARY INPUT ---
+        addWordBtn.addEventListener('click', async () => {
+            const originalWord = newWordInput.value.trim().toLowerCase();
+            const userTranslation = userTranslationInput.value.trim();
+            if (!originalWord) {
+                showInputFeedback("Please enter a word.", "text-red-400");
+                return;
+            }
+            if (!userId) {
+                showInputFeedback("You must be logged in to add words.", "text-red-400");
+                return;
+            }
+
+            setButtonLoading(addWordBtn, true);
+
+            try {
+                // Get the base form of the word from Gemini
+                const baseWord = await getBaseFormFromGemini(originalWord);
+                
+                const wordRef = doc(db, `users/${userId}/words`, baseWord);
+                const docSnap = await getDoc(wordRef);
+
+                if (docSnap.exists()) {
+                    showInputFeedback(`"${baseWord}" is already in your list.`, "text-yellow-400");
+                } else {
+                    await setDoc(wordRef, {
+                        word: baseWord,
+                        practicedCount: 0,
+                        createdAt: serverTimestamp(),
+                        userTranslation: userTranslation || ""
+                    });
+                    showInputFeedback(`Successfully added "${baseWord}"!`, "text-green-400");
+                    newWordInput.value = '';
+                    userTranslationInput.value = '';
+                }
+            } catch (error) {
+                console.error("Error adding word: ", error);
+                showInputFeedback("Could not add word. See console for details.", "text-red-400");
+            } finally {
+                setButtonLoading(addWordBtn, false);
+            }
+        });
+
+        // --- EXERCISE LOGIC ---
+        async function loadNextWord() {
+            if (!userId) {
+                promptWord.textContent = '...';
+                return;
+            }
+            
+            promptWord.textContent = 'Loading...';
+            answerInput.value = '';
+            feedbackContainer.innerHTML = '';
+
+            const wordsCol = collection(db, `users/${userId}/words`);
+            const snapshot = await getDocs(wordsCol);
+
+            if (snapshot.empty) {
+                promptWord.textContent = 'No words';
+                document.getElementById('exercise-content').style.display = 'none';
+                return;
+            }
+            
+            document.getElementById('exercise-content').style.display = 'block';
+
+            let words = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+            // Prioritize less practiced words
+            words.sort((a, b) => a.practicedCount - b.practicedCount);
+            
+            // Add randomness by picking from the bottom third
+            const oneThirdIndex = Math.ceil(words.length / 3);
+            const randomIndex = Math.floor(Math.random() * oneThirdIndex);
+            
+            currentWord = words[randomIndex];
+            promptWord.textContent = currentWord.word;
+        }
+
+        checkAnswerBtn.addEventListener('click', async () => {
+            const userAnswer = answerInput.value.trim();
+            if (!userAnswer || !currentWord) return;
+
+            setButtonLoading(checkAnswerBtn, true);
+            feedbackContainer.innerHTML = `<p class="text-center text-slate-400">Checking...</p>`;
+
+            try {
+                const isCorrect = await checkAnswerWithGemini(currentWord.word, userAnswer);
+
+                if (isCorrect) {
+                    feedbackContainer.innerHTML = `<p class="text-center text-green-400 font-semibold">Correct!</p>`;
+                    await updatePracticeCount(currentWord, 1);
+                    await showWordInfo(currentWord);
+                } else {
+                    feedbackContainer.innerHTML = `<p class="text-center text-red-400 font-semibold">Not quite. Try again!</p>`;
+                }
+            } catch (error) {
+                console.error('Error checking answer:', error);
+                feedbackContainer.innerHTML = `<p class="text-center text-red-400">Error checking answer.</p>`;
+            } finally {
+                setButtonLoading(checkAnswerBtn, false);
+            }
+        });
+
+        giveUpBtn.addEventListener('click', async () => {
+             if (!currentWord) return;
+             setButtonLoading(giveUpBtn, true);
+             feedbackContainer.innerHTML = `<p class="text-center text-slate-400">Revealing answer...</p>`;
+             await updatePracticeCount(currentWord, -1);
+             await showWordInfo(currentWord, true); // `true` to indicate it's a give-up
+             setButtonLoading(giveUpBtn, false);
+        });
+
+        nextWordBtn.addEventListener('click', loadNextWord);
+
+        async function updatePracticeCount(wordObject, change) {
+            const wordRef = doc(db, `users/${userId}/words`, wordObject.id);
+            const newCount = (wordObject.practicedCount || 0) + change;
+            await updateDoc(wordRef, { practicedCount: newCount });
+        }
+
+
+        // --- GEMINI API INTEGRATION ---
+        async function makeGeminiApiCall(prompt, retries = 3, delay = 1000) {
+            // The frontend now calls our own serverless function, not Google's API directly.
+            const functionUrl = `/.netlify/functions/gemini`;
+
+            for (let i = 0; i < retries; i++) {
+                try {
+                    const response = await fetch(functionUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ prompt: prompt }) // Send the prompt in the body
+                    });
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        throw new Error(`Function call failed with status: ${response.status} - ${errorText}`);
+                    }
+                    const result = await response.json();
+                    return result.text; // The function returns the text directly
+                } catch (error) {
+                    console.error(`Attempt ${i + 1} failed:`, error);
+                    if (i === retries - 1) throw error;
+                    await new Promise(res => setTimeout(res, delay * Math.pow(2, i)));
+                }
+            }
+        }
+
+        async function checkAnswerWithGemini(correctWord, userAnswer) {
+             const prompt = `The original word is "${correctWord}". The user's answer for its translation or meaning is "${userAnswer}". Is the user's answer correct? Consider minor typos or slight variations in meaning as correct. Respond with only "CORRECT" or "INCORRECT".`;
+             const response = await makeGeminiApiCall(prompt);
+             return response.trim().toUpperCase() === 'CORRECT';
+        }
+        
+        async function getBaseFormFromGemini(word) {
+            const prompt = `What is the base form of the Icelandic word "${word}"? For a noun, this is the nominative singular. For a verb, this is the infinitive. For an adjective, this is the nominative singular masculine strong form. Respond with ONLY the base form and nothing else.`;
+            const baseForm = await makeGeminiApiCall(prompt);
+            return baseForm.trim().toLowerCase();
+        }
+
+        async function getWordInfoFromGemini(word) {
+             const prompt = `Provide detailed information for the Icelandic word "${word}". Structure your response in four parts separated by "---".
+1. A comma-separated list of the top 3-5 most common English translations.
+---
+2. A comma-separated list of common Icelandic synonyms, if any. If none, write "None".
+---
+3. If the word is a noun, verb, or adjective, provide a full declension or conjugation table in a simple HTML table format with <th> for headers.
+---
+4. Three example Icelandic sentences using the word, with English translations. Format as: "Original Icelandic sentence. (English translation.)" and list them with numbers.`;
+             const response = await makeGeminiApiCall(prompt);
+             return response;
+        }
+
+        async function showWordInfo(wordObject, isGiveUp = false) {
+             const word = wordObject.word;
+             const userTranslation = wordObject.userTranslation;
+
+             modalContent.innerHTML = `<p class="text-center text-slate-400">Fetching word details...</p>`;
+             wordInfoModal.classList.remove('hidden');
+
+             try {
+                const info = await getWordInfoFromGemini(word);
+                const [translations, synonyms, table, sentences] = info.split('---').map(s => s.trim());
+
+                let userTranslationHtml = '';
+                if (userTranslation) {
+                    userTranslationHtml = `
+                        <div class="mb-4 p-3 bg-sky-500/10 text-sky-300 border border-sky-500/20 rounded-lg">
+                            <h3 class="font-semibold text-lg text-sky-400">Your Translation:</h3>
+                            <p class="text-slate-200 text-base">${userTranslation}</p>
+                        </div>
+                    `;
+                }
+
+                let html = `
+                    <h2 class="text-3xl font-bold mb-4 text-center capitalize text-slate-100">${word}</h2>
+                    ${isGiveUp ? `<p class="text-center mb-4 p-2 bg-yellow-500/10 text-yellow-300 border border-yellow-500/20 rounded-lg">Here's the information for this word. Its practice count has been reduced.</p>` : ''}
+                    
+                    ${userTranslationHtml}
+
+                    <div class="space-y-4">
+                        <div>
+                            <h3 class="font-semibold text-lg text-sky-400">AI Translations:</h3>
+                            <p class="text-slate-300">${translations.split('\n')[0] || 'N/A'}</p>
+                        </div>
+                        <div>
+                            <h3 class="font-semibold text-lg text-sky-400">Synonyms:</h3>
+                            <p class="text-slate-300">${synonyms.split('\n')[0] || 'N/A'}</p>
+                        </div>
+                        <div>
+                            <h3 class="font-semibold text-lg text-sky-400">Grammar:</h3>
+                            <div class="prose prose-invert max-w-none text-slate-300">${table || 'N/A'}</div>
+                        </div>
+                        <div>
+                            <h3 class="font-semibold text-lg text-sky-400">Examples:</h3>
+                            <p class="text-slate-300 whitespace-pre-line">${sentences || 'N/A'}</p>
+                        </div>
+                    </div>
+                `;
+                modalContent.innerHTML = html;
+
+             } catch (error) {
+                 console.error("Error fetching word info:", error);
+                 modalContent.innerHTML = `<p class="text-center text-red-400">Could not load word information.</p>`;
+             }
+        }
+        
+        closeModalBtn.addEventListener('click', () => {
+            wordInfoModal.classList.add('hidden');
+        });
+
+        // --- UTILITY FUNCTIONS ---
+        function setButtonLoading(button, isLoading) {
+            if (isLoading) {
+                button.disabled = true;
+                button.innerHTML = `<span class="inline-flex items-center">Loading...</span>`;
+            } else {
+                button.disabled = false;
+                button.textContent = button.id === 'add-word' ? 'Add' : 'Check';
+                if(button.id === 'give-up') button.textContent = 'I give up';
+            }
+        }
+
+        function showInputFeedback(message, className) {
+            inputFeedback.textContent = message;
+            inputFeedback.className = `text-center mt-4 text-sm ${className}`;
+            setTimeout(() => {
+                inputFeedback.textContent = '';
+            }, 3000);
+        }
+
+    </script>
+</body>
+</html>
+
