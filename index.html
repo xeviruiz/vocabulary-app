@@ -505,7 +505,7 @@
         }
 
         async function getSentenceFromGemini(englishWord) {
-            const prompt = `Create a moderately complex and interesting English sentence for a language learner that prominently features the word "${englishWord}". The sentence should provide good context for learning and introduce varied vocabulary. Avoid overly simple structures like "The ${englishWord} is...". Respond with ONLY the sentence.`;
+            const prompt = `Create a moderately complex but short and interesting English sentence for a language learner that prominently features the word "${englishWord}". The sentence should provide good context for learning and introduce varied vocabulary. Avoid overly simple structures like "The ${englishWord} is...". Respond with ONLY the sentence.`;
             return await makeGeminiApiCall(prompt);
         }
 
@@ -607,4 +607,5 @@
     </script>
 </body>
 </html>
+
 
