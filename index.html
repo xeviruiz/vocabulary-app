@@ -252,7 +252,8 @@
 
                 if (docSnap.exists()) {
                     showInputFeedback(`"${baseWord}" is already in your list.`, "text-yellow-400");
-                    <await setDoc(wordRef, {
+                } else {
+                    await setDoc(wordRef, {
                         word: baseWord,
                         practicedCount: 0,
                         createdAt: serverTimestamp(),
@@ -620,5 +621,4 @@
     </script>
 </body>
 </html>
-
 
